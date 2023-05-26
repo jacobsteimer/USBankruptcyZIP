@@ -1,7 +1,7 @@
 MedianIncome <- get_acs(
   geography = "zcta", year = 2021,
   variables = "B19013_001")
-  )
+)
 TotalPopulation <- get_acs(
   geography = "zcta", year = 2021,
   variables = "B01003_001" 
@@ -20,7 +20,29 @@ Population25Higher <- get_acs(
   geography = "zcta", year = 2021,
   variables = "B15003_001" 
 )
-#Data necessary for educational Bach degree %
+#Data necessary for educational Bach degree Rate
 
+HomesOwned <- get_acs(
+  geography = "zcta", year = 2021,
+  variables = "B25003_002" 
+)
+TotalHomes <- get_acs(
+  geography = "zcta", year = 2021,
+  variables = "B25003_001" 
+)
+#Data necessary for Home Ownership Rate
 
+Population16Higher <- get_acs(
+  geography = "zcta", year = 2021,
+  variables = "B23025_001" 
+)
+InCivilianLaborForce <- get_acs(
+  geography = "zcta", year = 2021,
+  variables = "B23025_003" 
+)
+Unemployed <- get_acs(
+  geography = "zcta", year = 2021,
+  variables = "B23025_005" 
+)
+#Employment Data
 
