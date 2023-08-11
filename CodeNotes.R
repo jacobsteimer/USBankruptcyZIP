@@ -70,7 +70,7 @@ Employment <- Employment %>% rename(Pop16Higher = estimate.x) %>% rename(LaborFo
 Employment <- Employment %>% mutate(LabForceParticipation = LaborForce/Pop16Higher) %>% mutate(UnRate = Unemploy/LaborForce)
 
 #Combine all relevant data
-CensusData <- bind_cols(select(Employment, LabForceParticipation, UnRate, GEOID), select(Homeownership,HomeOwnRate), select(BachDegreeData,BachPercent), select(IncomeAndRace,MedIncome,BlackPercent))
+CensusData <- bind_cols(select(Employment, LabForceParticipation, UnRate, GEOID), select(Homeownership,HomeOwnRate), select(BachDegreeData,BachPercent), select(IncomeAndRace,MedIncome,BlackPercent,Population))
 
 #Save as CSV
 current_dir <- getwd()
