@@ -16,9 +16,12 @@ library(broom)
 library(readr)
 library(lubridate)
 
+#Timeout
+options(timeout = 120)
+
 # This code will automatically download and load the two necessary datasets
 
-Brup_file_url <- "https://www.fjc.gov/sites/default/files/idb/datasets/cpbankdec22.zip"
+Brup_file_url <- "https://github.com/jacobsteimer/USBankruptcyZIP/blob/main/cpbankdec22.zip"
 Brup_local_zip <- "cpbankdec22.zip"
 download.file(Brup_file_url, Brup_local_zip)
 unzip(Brup_local_zip, exdir = "data_directory")
@@ -79,13 +82,6 @@ fitlm2 <- lm(BrupPerThou ~ BlackPercent + BachPercent + HomeOwnRate, data = Brup
 tidy(fitlm2)
 #The biggest difference is the Bachelor Degree rate appears more weighty in this simplified linear model. That's probably because of its correlation with unemployment.
 
-#Let's get an RMSE for both models
-predictions_fitlm <- predict(fitlm, newdata = BrupCensusTest)
-rmse_fitlm <- RMSE(predictions_fitlm, BrupCensusTest$BrupPerThou, na.rm = TRUE)
-predictions_fitlm2 <- predict(fitlm2, newdata = BrupCensusTest)
-rmse_fitlm2 <- RMSE(predictions_fitlm2, BrupCensusTest$BrupPerThou, na.rm = TRUE)
-#Both are quite low. The first landed around 1.6. The second around 2.2. So we lose a little when deleting variables. 
-
 #Now, let's try it on the number of Ch 13s
 fitlm3 <- lm(ThirteenPerThou ~ BlackPercent + LabForceParticipation + HomeOwnRate + UnRate + MedIncome + BachPercent, data = BrupCensusTrain)
 tidy(fitlm3)
@@ -93,12 +89,6 @@ fitlm4 <- lm(ThirteenPerThou ~ BlackPercent + LabForceParticipation + HomeOwnRat
 tidy(fitlm4)
 # The percentage of Black residents and the homeownership rate remain extremely powerful predictors.
 # I used the top four predictors this time instead of the top three in the simplified model. Labor Force Participation Rate becomes much more important, probably because of its correlation with unemployment and median income.
-# Let's run the RMSEs.
-predictions_fitlm3 <- predict(fitlm3, newdata = BrupCensusTest)
-rmse_fitlm3 <- RMSE(predictions_fitlm3, BrupCensusTest$ThirteenPerThou, na.rm = TRUE)
-predictions_fitlm4 <- predict(fitlm4, newdata = BrupCensusTest)
-rmse_fitlm4 <- RMSE(predictions_fitlm4, BrupCensusTest$ThirteenPerThou, na.rm = TRUE)
-#These RMSEs are a little lower but about the same. 
 
 #Now, the percentage of 13s.
 fitlm5 <- lm(ThirteenPerc ~ BlackPercent + LabForceParticipation + HomeOwnRate + UnRate + MedIncome + BachPercent, data = BrupCensusTrain)
@@ -109,7 +99,21 @@ tidy(fitlm6)
 # Rising incomes drive down the percentage of Chapter 13s, which is not how it's supposed to work
 # College education stops being nearly as predictive. 
 
-#Now find RMSEs
+#Let's get an RMSE for the first two models (total bankruptcies)
+predictions_fitlm <- predict(fitlm, newdata = BrupCensusTest)
+rmse_fitlm <- RMSE(predictions_fitlm, BrupCensusTest$BrupPerThou, na.rm = TRUE)
+predictions_fitlm2 <- predict(fitlm2, newdata = BrupCensusTest)
+rmse_fitlm2 <- RMSE(predictions_fitlm2, BrupCensusTest$BrupPerThou, na.rm = TRUE)
+#Both are quite low. The first landed around 1.6. The second around 2.2. So we lose a little when deleting variables.
+
+# Let's run the RMSEs for the Chapter 13 bankruptcy models
+predictions_fitlm3 <- predict(fitlm3, newdata = BrupCensusTest)
+rmse_fitlm3 <- RMSE(predictions_fitlm3, BrupCensusTest$ThirteenPerThou, na.rm = TRUE)
+predictions_fitlm4 <- predict(fitlm4, newdata = BrupCensusTest)
+rmse_fitlm4 <- RMSE(predictions_fitlm4, BrupCensusTest$ThirteenPerThou, na.rm = TRUE)
+#These RMSEs are a little lower but about the same. 
+
+#Now let's find RMSEs for the Percentage of Ch 13 models
 predictions_fitlm5 <- predict(fitlm5, newdata = BrupCensusTest)
 rmse_fitlm5 <- RMSE(predictions_fitlm5, BrupCensusTest$ThirteenPerc, na.rm = TRUE)
 predictions_fitlm6 <- predict(fitlm6, newdata = BrupCensusTest)
@@ -124,32 +128,36 @@ var_importance_rf <- varImp(fitrf)
 print(var_importance_rf)
 # This is fascinating. This analysis turns up college education and race as the two most important variables, with median income in third. 
 # Also, it sees no importance in homeownership rate, despite our linear model showing it had a large and statistically significant effect.
-BrupCensusTestAdjusted <- na.omit(BrupCensusTest)
-predictions_fitrf <- predict(fitrf, newdata = BrupCensusTestAdjusted, na.action = na.omit)
-rmse_fitrf <- RMSE(predictions_fitrf, BrupCensusTestAdjusted$BrupPerThou, na.rm = TRUE)
-# This RMSE is roughly the same as our lm
 
 #Thirteens ... original attempt was too big to run, so I cut down the control number and used only the four most predictive variables from the lm
 ctrl13 <- trainControl(method = "cv", number = 3)
 fitrf13 <- train(ThirteenPerThou ~ BlackPercent + LabForceParticipation + HomeOwnRate + BachPercent, data = BrupCensusTrain, method = "rf", trControl = ctrl13, na.action = na.omit)
 var_importance_rf_13 <- varImp(fitrf13)
 print(var_importance_rf_13)
-predictions_fitrf13 <- predict(fitrf13, newdata = BrupCensusTestAdjusted, na.action = na.omit)
-rmse_fitrf13 <- RMSE(predictions_fitrf13, BrupCensusTestAdjusted$ThirteenPerThou, na.rm = TRUE)
 #Woah! Race lost all of its importance. Labor force participation becomes most important and college education becomes #2. 
 # Relatively wild results, based on our linear models. I don't exactly know how to interpret them, other than to take labor force participation more seriously and be a little more skeptical of the race effect.
-#Slightly lower RMSE than for the total bankruptcies random forest. However, only a little bit better than the lms for Chapter 13s.
 
 # Now for ThirteenPerc, using all the variables 
 fitrf13perc <- train(ThirteenPerc ~ BlackPercent + LabForceParticipation + HomeOwnRate + UnRate + MedIncome + BachPercent, data = BrupCensusTrain, method = "rf", trControl = ctrl13, na.action = na.omit)
 var_importance_rf_13perc <- varImp(fitrf13perc)
 print(var_importance_rf_13perc)
-predictions_fitrf13perc <- predict(fitrf13perc, newdata = BrupCensusTestAdjusted, na.action = na.omit)
-rmse_fitrf13perc <- RMSE(predictions_fitrf13perc, BrupCensusTestAdjusted$ThirteenPerc, na.rm = TRUE)
 # Race returns to near the top, with homeownership just ahead of it. 
 # Race remains fascinating, as it's been the subject of much discussion. It's also fascinating that random forest analyses sees little importance for race in the number of Chapter 13 filings but great importance for a ZIP's percentage of filings that are Ch. 13.
 # Homeownership makes sense, as homeowners are far more likely to file a Chapter 13 than a Chapter 7.
 # Also interesting that it relegates Median Income to having no importance.
+
+# Now, let's calculate the RMSEs
+BrupCensusTestAdjusted <- na.omit(BrupCensusTest)
+predictions_fitrf <- predict(fitrf, newdata = BrupCensusTestAdjusted, na.action = na.omit)
+rmse_fitrf <- RMSE(predictions_fitrf, BrupCensusTestAdjusted$BrupPerThou, na.rm = TRUE)
+# This RMSE is roughly the same as our lm
+
+predictions_fitrf13 <- predict(fitrf13, newdata = BrupCensusTestAdjusted, na.action = na.omit)
+rmse_fitrf13 <- RMSE(predictions_fitrf13, BrupCensusTestAdjusted$ThirteenPerThou, na.rm = TRUE)
+#Slightly lower RMSE than for the total bankruptcies random forest. However, only a little bit better than the lms for Chapter 13s.
+
+predictions_fitrf13perc <- predict(fitrf13perc, newdata = BrupCensusTestAdjusted, na.action = na.omit)
+rmse_fitrf13perc <- RMSE(predictions_fitrf13perc, BrupCensusTestAdjusted$ThirteenPerc, na.rm = TRUE)
 # This is our lowest RMSE yet, although not that much lower than the linear models for the percentage of chapter 13s. 
 
 #Let's give KNN a shot
@@ -157,6 +165,13 @@ fitknn <- train(BrupPerThou ~ BlackPercent + LabForceParticipation + HomeOwnRate
 predictions_fitknn <- predict(fitknn, newdata = BrupCensusTestAdjusted, na.action = na.omit)
 rmse_fitknn <- RMSE(predictions_fitknn, BrupCensusTestAdjusted$BrupPerThou, na.rm = TRUE)
 # this is our highest RMSE for total bankruptcies per thousand. Because of this, I feel comfortable ignoring KNN and sticking with our linear and random forest analyses.
+
+# The we stated originally was finding out why some parts of the country have more bankruptcies than others. And the random forest models performed better than the linear models. 
+# Therefore, we will consider "fitrf" our final model and apply it to the final holdout set.
+BrupCensusHoldoutAdjusted <- na.omit(BrupCensusHoldout)
+HO_predictions_fitrf <- predict(fitrf, newdata = BrupCensusHoldoutAdjusted, na.action = na.omit)
+rmse_HO_fitrf <- RMSE(HO_predictions_fitrf, BrupCensusHoldoutAdjusted$BrupPerThou, na.rm = TRUE)
+# It turns out the model performed even better on the holdout set than the Test set. Nice!
 
 #Now that we've run our analysis using only the census data and the BrupZIPcounts, let's try to predict whether a bankruptcy is a Chapter 7 or Chapter 13, using more parts of the Bankruptcy dataset
 #First, let's pare it down a bit and filter it to just chapter 7s and chapter 13s
