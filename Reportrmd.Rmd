@@ -2,7 +2,10 @@
 title: "Analsyis_of_bankruptcies_by_ZIP"
 author: "Jacob Steimer"
 date: "2023-07-27"
-output: html_document
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -15,13 +18,13 @@ knitr::opts_chunk$set(echo = TRUE)
 
 During the height of the COVID-19 pandemic, the number of personal bankruptcy filings dropped significantly across the country. However, some parts of the country continue to see far more bankruptcies than others, in a way that doesn't seem clearly correlated with any one factor, according to data from the Federal Judicial Center. Also, people's choices of type of bankruptcy --- Chapter 7 or Chapter 13 --- vary widely.
 
-In this analysis, I explore the relationship between bankruptcy rates in U.S. ZIP codes and various demographic variables pulled from the U.S. Census Bureau. Using machine learning techniques, I explore the importance of the different variables and build models that can predict bankruptcy rates given Census data.
+The goal of this project is to investigate the factors contributing to varying bankruptcy rates in different U.S. ZIP codes, with a particular focus on understanding why some areas have higher bankruptcy rates than others. I explore the relationship between bankruptcy rates in U.S. ZIP codes and various demographic variables pulled from the U.S. Census Bureau. Using machine learning techniques, I explore the importance of the different variables and build models that can predict bankruptcy rates given Census data.
+
+Among other purposes, this research was designed to inform a news article in MLK50: Justice Through Journalism that was published in September 2023.
 
 ### Data Overview
 
-(See lines 1-28 in "CodeToFollow.R")
-
-I obtained bankruptcy data from the Federal Judicial Center website and demographic data from the U.S. Census Bureau. Because the FJC and Census website links are subject to change, I uploaded the relevant data from both websites to GitHub and wrote code for its download.
+I obtained bankruptcy data from the Federal Judicial Center website and demographic data from the U.S. Census Bureau. Because the FJC and Census website links are subject to change, I uploaded the relevant data from the websites to GitHub and provided code for data retrieval.
 
 The bankruptcy data includes one row for every bankruptcy filed during 2022. Columns included the type of bankruptcy and the ZIP code connected with each debtor.
 
@@ -45,41 +48,197 @@ I chose most of these factors because they're important economic characteristics
 
 ##### Data Preparation
 
-(See lines 29-68 in "CodeToFollow.R")
+To prepare the data for analysis, I determined the count of Chapter 13 bankruptcies, count of total bankruptcies and the percentage of Chapter 13 bankruptcies in each ZIP using "summarize" and "mutate".
 
-I cleaned the dataset by removing duplicate cases and filtering it to include only those filed in 2022. I then determined the count of Chapter 13 bankruptcies, count of total bankruptcies and the percentage of Chapter 13 bankruptcies using "summarize" and "mutate". Additionally, I transformed certain variables for better interpretability. For instance, I divided Median Income by 10,000 because a difference in \$10,000 between ZIPs is more understandable than a \$1 difference.
+Additionally, I transformed the median income variable for better interpretability: I divided the raw median income by 10,000 because a difference in \$10,000 between ZIPs is more understandable than a \$1 difference.
 
 I then split the data into a holdout set, a training set and a testing set. Since the data only included about 18,000 observations, I used a 10% partition each time, to ensure both the holdout and testing sets were large enough.
 
+##### Data Exploration
+
+To start my data exploration, I produced a basic statistical summary of my dataset, using the summary() function. From the summary, the presence of outliers became clear. Also, it confirmed the wide variation in bankruptcy rates I had been told about.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# In this code, we will analyze the relationship between bankruptcy rates in U.S. ZIP codes 
+# and various demographic variables pulled from the U.S. Census Bureau. 
+
+# Install all needed packages
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(haven)) install.packages("haven", repos = "http://cran.us.r-project.org")
+if(!require(ggrepel)) install.packages("ggrepel", repos = "http://cran.us.r-project.org")
+if(!require(broom)) install.packages("broom", repos = "http://cran.us.r-project.org")
+if(!require(readr)) install.packages("readr", repos = "http://cran.us.r-project.org")
+if(!require(lubridate)) install.packages("lubridate", repos = "http://cran.us.r-project.org")
+
+# Load all needed packages
+library(tidyverse)
+library(caret)
+library(haven)
+library(ggrepel)
+library(broom)
+library(readr)
+library(lubridate)
+
+#Timeout
+options(timeout = 120)
+
+# This code will automatically download and load the two necessary datasets
+
+Brup_file_url <- "https://github.com/jacobsteimer/USBankruptcyZIP/raw/main/BankruptcyData2022.zip"
+local_zip_file <- basename(Brup_file_url)
+download.file(Brup_file_url, local_zip_file, mode = "wb")
+unzip(local_zip_file)
+Brup_data <- readr::read_csv("BankruptcyData2022.csv")
+Census_file_url <- "https://github.com/jacobsteimer/USBankruptcyZIP/raw/main/CensusData.csv"
+census_data <- readr::read_csv(Census_file_url)
+
+#Getting started, let's clean up the ZIP column
+Brup_data$GEOID <- substr(Brup_data$D1ZIP, 1, 5)
+
+#Then, let's count up the number of bankruptcies in each ZIP and the number of Chapter 13 Bankruptcies in each ZIP
+BrupZIPcounts <- Brup_data %>% group_by(GEOID) %>% summarize(Bankruptcies = n())
+ThirteenZIPcounts <- Brup_data %>% filter(ORGFLCHP == 13) %>% group_by(GEOID) %>% summarize(Thirteens = n())
+BrupAndThirteenZIP <- inner_join(BrupZIPcounts,ThirteenZIPcounts, by = "GEOID")
+
+#Let's also calculate the percentage of Bankruptcies that are Chapter 13
+BrupAndThirteenZIP <- BrupAndThirteenZIP %>% mutate(ThirteenPerc = (Thirteens/Bankruptcies))
+
+#Now, let's join that with our census data
+Brup_w_Census <- inner_join(BrupAndThirteenZIP,census_data,by = "GEOID")
+
+# And let's go ahead and turn Bankruptcies and Thirteens to "per thousand residents" statistics
+Brup_w_Census <- Brup_w_Census %>% mutate(BrupPerThou = Bankruptcies/Population*1000) %>% mutate(ThirteenPerThou = Thirteens/Population*1000)
+
+# Also, let's divide MedIncome by 10,000. A difference in $10,000 between ZIP codes is a more understandable change than a difference of $1.
+Brup_w_Census$MedIncome <- Brup_w_Census$MedIncome/10000 
+# And let's remove ZIPs with populations of less than 250, as these could skew the per-thousand measures
+Brup_w_Census <- Brup_w_Census %>% filter(Population > 250)
+
+#Before doing any analysis, let's split it into a holdout set, a testing set and a training set
+set.seed(1, sample.kind="Rounding")
+test_index <- createDataPartition(y = Brup_w_Census$Bankruptcies, times = 1, p = 0.1, list = FALSE)
+BrupCensusUse <- Brup_w_Census[-test_index,]
+BrupCensusHoldout <- Brup_w_Census[test_index,]
+
+test_index2 <- createDataPartition(y = BrupCensusUse$Bankruptcies, times = 1, p = 0.1, list = FALSE)
+BrupCensusTrain <- BrupCensusUse[-test_index2,]
+BrupCensusTest <- BrupCensusUse[test_index2,]
+
+# Now, let's do some data exploration
+summary(BrupCensusTrain)
+```
+
+Next, I created histograms for my bankruptcy variables, to better visualize the range of outcomes I would be predicting and the variation of bankruptcy usage across the country.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+hist(BrupCensusTrain$Bankruptcies, main = "Distribution of total bankruptcies", xlab = "Bankruptcies")
+hist(BrupCensusTrain$BrupPerThou, main = "Distribution of Bankruptcies per 1000 Residents", xlab = "Bankruptcies per 1000 Residents")
+hist(BrupCensusTrain$ThirteenPerThou, main = "Distribution of Chapter 13 filings per 1000 Residents", xlab = "Chapter 13 filings per 1000 Residents")
+hist(BrupCensusTrain$ThirteenPerc, main = "Distribution of types of bankruptcy used", xlab = "Percentage of personal bankruptcy filings that are Chapter 13")
+```
+
+The fourth histogram, showing the percentage of filings that are Chapter 13, was quite useful. I didn't expect so many ZIPs to have exclusively Chapter 13 bankruptcies. And it also showed that fewer than 40% of bankruptcies are Chapter 13 in most ZIPs.
+
+The other histograms didn't show much other than the presence of outliers. So, I decided to use logarithms to explore the data further.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+log_brupperthou <- log(Brup_w_Census$BrupPerThou)
+hist(log_brupperthou, main = "Distribution of Bankruptcies per 1000 Residents", xlab = "Bankruptcies per 1000 Residents")
+log_bankruptcies <- log(Brup_w_Census$Bankruptcies)
+hist(log_bankruptcies, main = "Distribution of total bankruptcies", xlab = "Bankruptcies per 1000 Residents")
+log_thirteenperthou <- log(BrupCensusTrain$ThirteenPerThou)
+hist(log_thirteenperthou, main = "Distribution of Chapter 13 filings per 1000 Residents", xlab = "Chapter 13 filings per 1000 Residents")
+```
+
+These histograms showed that while the distribution of total bankruptcies is pretty wide and uneven, both of the per-thousand measures roughly follow a normal distribution.
+
+To explore relationships between the Census variables and bankruptcies, I decided to create a few scatter plots. However, these didn't show much besides the presence of outliers. So, I decided to remove outliers and re-plot.
+
+With so many data points, the results are still difficult to interpret but did give me a rough idea of the effects of some of the key Census variables.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+remove_outliers <- function(data, variable) {
+  Q1 <- quantile(data[[variable]], 0.25, na.rm = TRUE)
+  Q3 <- quantile(data[[variable]], 0.75, na.rm = TRUE)
+  IQR <- Q3 - Q1
+  data <- data[data[[variable]] >= (Q1 - 1.5 * IQR) & data[[variable]] <= (Q3 + 1.5 * IQR), ]
+  return(data)
+}
+BrupCensusTrainNoOutliers <- remove_outliers(BrupCensusTrain, "BlackPercent")
+BrupCensusTrainNoOutliers <- remove_outliers(BrupCensusTrainNoOutliers, "MedIncome")
+BrupCensusTrainNoOutliers <- remove_outliers(BrupCensusTrainNoOutliers, "HomeOwnRate")
+BrupCensusTrainNoOutliers <- remove_outliers(BrupCensusTrainNoOutliers, "BachPercent")
+BrupCensusTrainNoOutliers <- remove_outliers(BrupCensusTrainNoOutliers, "BrupPerThou")
+
+ggplot(BrupCensusTrainNoOutliers, aes(x = BlackPercent, y = BrupPerThou)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Bankruptcies vs. Black Percentage",
+       x = "Black Percentage",
+       y = "Bankruptcies per 1000 Residents")
+
+ggplot(BrupCensusTrainNoOutliers, aes(x = MedIncome, y = BrupPerThou)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Bankruptcies vs. Median Income",
+       x = "Median Income",
+       y = "Bankruptcies per 1000 Residents")
+
+ggplot(BrupCensusTrainNoOutliers, aes(x = HomeOwnRate, y = BrupPerThou)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Bankruptcies vs. Homeownership Rate",
+       x = "Homeownership Rate",
+       y = "Bankruptcies per 1000 Residents")
+
+ggplot(BrupCensusTrainNoOutliers, aes(x = BachPercent, y = BrupPerThou)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Bankruptcies vs. College Education Percentage",
+       x = "College Education Percentage",
+       y = "Bankruptcies per 1000 Residents")
+```
+
 ##### Modeling with linear regression
 
-(See lines 69-97 in "CodeToFollow.R")
+To determine which demographic characteristics correlate most with elevated bankruptcy rates, I started with linear models.
 
-To determine which demographic characteristics correlate most with elevated bankruptcy rates, I started with linear models. I fit separate linear models for total bankruptcies per 1,000 residents (fitlm), Chapter 13 bankruptcies per 1,000 (fitlm3) and the percentage of bankruptcies that are Chapter 13 (fitlm5). I experimented with various subsets of variables along the way (fitlm2, fitlm4 and fitlm6).
+My first two linear models (fitlm and fitlm2) analyzed how demographic characteristics affected total bankruptcies per 1,000 residents in a ZIP. My first linear model (fitlm) included all six demographic variables I studied (listed above) and found race, college education and the homeownership rate to be the strongest predictors, with race having by far the largest effect. While I expected race to have a significant impact, I was surprised by this result.
 
-When fitting models that could predict the sum of Chapter 13 bankruptcies and of total bankruptcies, race, homeownership rate, and bachelor's degrees proved the strongest predictors. For the percentage of bankruptcies that are Chapter 13, college education lost most of its predictive power, and both the unemployment rate and the labor force participation rate became more important.
+Because there is a significant correlation between many of these demographic characteristics, I decided to run a second total-bankruptcies-per-person model (fitlm2) that included fewer variables --- race, college education and homeownership. It showed college education to be almost as impactful as race --- a result that likely didn't show up in the first model because of college education's strong correlation with unemployment and median income.
+
+My second pair of linear models (fitlm3 and fitlm4) analyzed how the demographic characteristics affected Chapter 13 bankruptcies per 1,000 residents. Fitlm3 included all six demographic characteristics and found race, homeownership rate, labor force participation rate and college education to be the most impactful. Race's importance here was less surprising, given existing research on African Americans' increased likelihood of filing for Chapter 13 bankruptcy.
+
+In fitlm4, I included each of the four variables that fitlm3 found to be most important and left out the unemployment rate and median income. Because of the labor force participation rate's strong correlation with those two variables, it appeared far more important in fitlm4 than in any prior model. In fact, surprisingly to me, its estimated impact surpassed the race variable. This showed me that the economic demographics --- in the aggregate --- are still quite important for predicting bankruptcy rates even if the individual variables don't appear as important.
+
+My third pair of linear models (fitlm5 and fitlm6 ) analyzed the demographic variables' effects on the percentage of bankruptcies that are Chapter 13. Fitlm5 showed race and homeownership rate to be the two most important variables, with homeownership rate the most important. This gives credence to the common expression that Chapter 13 is "the homeowner chapter." It's also interesting that the race variable (percent of Black residents) and homeownership both positively increase the percent of bankruptcies that are Chapter 13 while being negatively correlated with each other. Additionally, I was surprised to see that increases in income have a small negative effect on the percentage of bankruptcies that are Chapter 13, given the fact that Chapter 13 was designed for the middle class. When stripping away some of the less powerful economic variables (fitlm6), labor force participation rate once again showed a larger effect.
 
 ##### Modeling with Random Forrest
 
-(see lines 121-144 in code)
+Next, I applied the Random Forrest algorithm to predict the same outcomes as in the linear regression models. The Random Forrest's variable importance measurements did not highlight the same variables that jumped out in our linear models. Also, while the linear models consistently saw large effects caused by similar variables, the Random Forrest importance rankings were much different from each other, depending on whether total bankruptcies (fitrf) , Chapter 13 bankruptcies (fitrf13) or percentage of Chapter 13 bankruptcies (fitrf13perc) were being predicted.
 
-Next, I applied the Random Forrest algorithm to predict the same outcomes as in the linear regression models. The Random Forrest's variable importance measurements did not highlight the same variables that jumped out in our linear models. Also, while the linear models consistently saw large effects caused by similar variables, the Random Forrest importance rankings were much different from each other, depending on whether total bankruptcies, Chapter 13 bankruptcies or percentage of Chapter 13 bankruptcies were being predicted.
+For total bankruptcies, it listed the bachelor's degree and race variables as most important and homeownership rate as least important. For the number of Chapter 13 bankruptcies, it listed the labor force participation rate as most important and race as least important. And for the percentage of bankruptcies that are Chapter 13, it listed homeownership rate and race as most important and median income and labor force participation rate as least important.
 
-For total bankruptcies, it listed the bachelor's degree and race variables as most important and homeownership rate as least important. For Chapter 13 bankruptcies, it listed the labor force participation rate as most important and race as least important. And for the percentage of bankruptcies that are Chapter 13, it listed homeownership rate and race as most important and median income and labor force participation rate as least important.
+These results are difficult to interpret. In aggregate, they seem to say that labor force participation rate is a bit more important than the linear models seemed to indicate and that race is a bit less important. They also reaffirm how poor of a predictor median income is. Going into this analysis, I had expected it to be one of the most important variables.
 
 ### Results
 
 ##### Linear models performance
 
-(see lines 98-120 in code)
+Our linear models exhibited relatively low Root Mean Square Errors (RMSE) across various predictions. RMSE is a commonly used metric for assessing the accuracy of predictive models. It measures the average difference between the predicted values and the actual observed values. A lower RMSE indicates a better fit of the model to the data.
 
-My linear models had by far their lowest RMSEs (around .25) when predicting the percentage of bankruptcies in a given ZIP that were Chapter 13 (fitlm5 and fitlm6). It struggled the most in predicting the total number of bankruptcies in a ZIP (fitlm and fitlm2). But even there, the RMSE was relatively low (around 1.6).
+The models had their lowest RMSEs (around .25) when predicting the percentage of bankruptcies in a given ZIP that were Chapter 13 (fitlm5 and fitlm6). It struggled the most in predicting the total number of bankruptcies in a ZIP (fitlm and fitlm2). Fitlm had an RMSE of 1.604, and fitlm2 had an RMSE of 2.165. When prediction the number of Chapter 13 bankruptcies, the RMSEs were 1.281 (fitlm3) and 1.642 (fitlm4)
+
+These RMSE values show that bankruptcy prevalence and, especially, type can be accurately predicted based on readily available demographic data. This proves the systemic nature of bankruptcy in America.
 
 ##### Random Forrest performance
 
 (see lines 145-158 in code)
 
-All three of our Random Forrest models performed slightly better --- in terms of RMSE --- than their linear model counterparts. However, since the differences were small, we shouldn't necessarily consider the Random Forrest results more important than the linear model results.
+All three of our Random Forrest models performed slightly better --- in terms of RMSE --- than their linear model counterparts. The Random Forrest analyzing total bankruptcy filings (fitrf) had an RMSE of 1.436, the one analyzing Chapter 13 filings (fitrf13) had an RMSE of 1.129, and the one analyzing the percentage of filings that were Chapter 13 (fitrf13perc) had an RMSE of .231. However, since the differences were small, we shouldn't necessarily consider the Random Forrest results more important than the linear model results.
+
+Again, these low RMSEs show the relative ease with which bankrutpcy rates and types can be predicted given demographic data.
 
 #### Aside #1: KNN model and performance
 
@@ -89,25 +248,23 @@ I also attempted to use K-nearest neighbors (KNN) for prediction and analysis, b
 
 #### Aside #2: Using the bankruptcy data itself to predict Chapter type
 
-(see lines 166-197 in code)
-
 As I've continued to research the causes of someone filing a Chapter 13 instead of Chapter 7, I decided to analyze this data in one more way. The bankruptcy data itself contains far more information than Chapter and ZIP. So, I wanted to analyze which variables within that dataset can help us accurately predict Chapter choice.
 
 To do this, I pared the data down into include 9 variables that seemed like they could affect Chapter choice: Total Assets (TOTASSTS), Real Property (REALPROP), Personal Property (PERSPROP), Total Liabilities (TOTLBLTS), Secured Claims (SECURED), Unsecured Priority Claims (UNSECPR), Unsecured Nonpriority Claims UNSECNPR, Total Debt (TOTDBT), and Current Monthly Income (CNTMNTHI). I then made Chapter choice a binary variable.
 
-I then chopped the dataset up into four parts: A final holdout set, a testing set, a training set and a small training set. I created the small training set because the data has over 388,000 observations.
+I then chopped the dataset up into four parts: A testing set, a training set and a small training set. I created the small training set because the data has over 388,000 observations.
 
-Using the small training set, I ran a linear regression to find the most important variables. These were real property, secured debt and current monthly income.
+Using the small training set, I ran a linear regression to find the most important variables. These were, in order, secured debt, real property, and current monthly income.
 
-Then, using just these variables, I ran a linear regression on the larger training set. The RMSE turned out quite small, which gives me confidence that these three factors play large roles in the Chapter someone chooses.
+Then, using just these variables, I ran a linear regression on the larger training set. With fewer variables, current monthly income rose to the top as the most predictive variable. The RMSE turned out quite small, which gives me confidence that these three factors play large roles in the Chapter someone chooses.
 
 ### Conclusions
 
 This project primarily accomplished three tasks:
 
-1.  It demonstrated the ability of multiple machine learning techniques to predict bankruptcy rates (and types) using Census data. These techniques achieved low RMSEs.
+1.  It demonstrated the ability of multiple machine learning techniques to predict bankruptcy rates and Chapter types using Census data. These techniques achieved low RMSEs.This proved how closely bankruptcy is intertwined with economic conditions.
 
-2.  It proved that the percentage of Black residents in a given ZIP plays a major role in the number and type of bankruptcies there. In fact, it seems to play a larger role than any of the economic or educational characteristics we evaluated. This further proves the previously documented role of racial bias in the bankruptcy system. This finding informed a news article, which can be found here: <https://mlk50.com/2023/09/05/shelby-county-ranks-no-1-in-bankruptcy-heres-why/>.
+2.  It proved that the percentage of Black residents in a given ZIP plays a major role in the number and type of bankruptcies there. In fact, it seems to play a slightly larger role than any of the economic or educational characteristics we evaluated. This further proves the previously documented role of racial bias in the bankruptcy system. This finding informed a news article I wrote, which can be found here: <https://mlk50.com/2023/09/05/shelby-county-ranks-no-1-in-bankruptcy-heres-why/>. In that article, I wrote, "The percentage of Black residents in a given U.S. ZIP code is a strong predictor of the number of Chapter 13 bankruptcy filers there, even when accounting for other demographic variables. When MLK50 analyzed the effects of race, college education, homeownership, unemployment, labor force participation and median income on Chapter 13 rates across the country, the percentage of Black residents and the labor force participation rate had the largest effects."
 
 3.  It also showed that the homeownership rate, college education, and labor force participation rate are better predictors of bankruptcy than median income or the unemployment rate.
 
