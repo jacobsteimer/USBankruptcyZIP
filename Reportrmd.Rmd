@@ -216,9 +216,9 @@ My third pair of linear models (fitlm5 and fitlm6 ) analyzed the demographic var
 
 ##### Modeling with Random Forrest
 
-Next, I applied the Random Forrest algorithm to predict the same outcomes as in the linear regression models. The Random Forrest's variable importance measurements did not highlight the same variables that jumped out in our linear models. Also, while the linear models consistently saw large effects caused by similar variables, the Random Forrest importance rankings were much different from each other, depending on whether total bankruptcies (fitrf) , Chapter 13 bankruptcies (fitrf13) or percentage of Chapter 13 bankruptcies (fitrf13perc) were being predicted.
+Next, I applied the Random Forrest algorithm to predict the same outcomes as in the linear regression models. The Random Forrest's variable importance measurements did not highlight the same variables that jumped out in our linear models. Also, while the linear models consistently saw large effects caused by similar variables, the Random Forrest importance rankings were significantly different from each other, depending on whether total bankruptcies (fitrf) , Chapter 13 bankruptcies (fitrf13) or percentage of Chapter 13 bankruptcies (fitrf13perc) were being predicted.
 
-For total bankruptcies, it listed the bachelor's degree and race variables as most important and homeownership rate as least important. For the number of Chapter 13 bankruptcies, it listed the labor force participation rate as most important and race as least important. And for the percentage of bankruptcies that are Chapter 13, it listed homeownership rate and race as most important and median income and labor force participation rate as least important.
+For the number of total bankruptcies and Chapter 13 bankruptcies, it listed the bachelor's degree and race variables as most important and saw little importance for the homeownership rate. But for the percentage of bankruptcies that are Chapter 13, it listed homeownership rate and race as most important and median income and labor force participation rate as least important.
 
 These results are difficult to interpret. In aggregate, they seem to say that labor force participation rate is a bit more important than the linear models seemed to indicate and that race is a bit less important. They also reaffirm how poor of a predictor median income is. Going into this analysis, I had expected it to be one of the most important variables.
 
@@ -228,7 +228,7 @@ These results are difficult to interpret. In aggregate, they seem to say that la
 
 Our linear models exhibited relatively low Root Mean Square Errors (RMSE) across various predictions. RMSE is a commonly used metric for assessing the accuracy of predictive models. It measures the average difference between the predicted values and the actual observed values. A lower RMSE indicates a better fit of the model to the data.
 
-The models had their lowest RMSEs (around .25) when predicting the percentage of bankruptcies in a given ZIP that were Chapter 13 (fitlm5 and fitlm6). It struggled the most in predicting the total number of bankruptcies in a ZIP (fitlm and fitlm2). Fitlm had an RMSE of 1.604, and fitlm2 had an RMSE of 2.165. When prediction the number of Chapter 13 bankruptcies, the RMSEs were 1.281 (fitlm3) and 1.642 (fitlm4)
+The models had their lowest RMSEs (around .25) when predicting the percentage of bankruptcies in a given ZIP that were Chapter 13 (fitlm5 and fitlm6). It struggled the most in predicting the total number of bankruptcies in a ZIP (fitlm and fitlm2). Fitlm had an RMSE of 1.189, and fitlm2 had an RMSE of 1.246. When predicting the number of Chapter 13 bankruptcies, the RMSEs were .859 (fitlm3) and .882 (fitlm4)
 
 These RMSE values show that bankruptcy prevalence and, especially, type can be accurately predicted based on readily available demographic data. This proves the systemic nature of bankruptcy in America.
 
@@ -236,9 +236,15 @@ These RMSE values show that bankruptcy prevalence and, especially, type can be a
 
 (see lines 145-158 in code)
 
-All three of our Random Forrest models performed slightly better --- in terms of RMSE --- than their linear model counterparts. The Random Forrest analyzing total bankruptcy filings (fitrf) had an RMSE of 1.436, the one analyzing Chapter 13 filings (fitrf13) had an RMSE of 1.129, and the one analyzing the percentage of filings that were Chapter 13 (fitrf13perc) had an RMSE of .231. However, since the differences were small, we shouldn't necessarily consider the Random Forrest results more important than the linear model results.
+All three of our Random Forrest models performed slightly better --- in terms of RMSE --- than their linear model counterparts. The Random Forrest analyzing total bankruptcy filings (fitrf) had an RMSE of 1.149, the one analyzing Chapter 13 filings (fitrf13) had an RMSE of .839, and the one analyzing the percentage of filings that were Chapter 13 (fitrf13perc) had an RMSE of .233. However, since the differences were small, we shouldn't necessarily consider the Random Forrest results more important than the linear model results.
 
 Again, these low RMSEs show the relative ease with which bankrutpcy rates and types can be predicted given demographic data.
+
+##### Final holdout performance
+
+The goal we stated originally was finding out why some parts of the country have more bankruptcies than others. And the random forest models performed better than the linear models. Therefore, we considered "fitrf" our final model and applied it to the final holdout set.
+
+It turns out the model performed even better on the holdout set than the test set, with an RMSE of 1.05.
 
 #### Aside #1: KNN model and performance
 
@@ -256,7 +262,7 @@ I then chopped the dataset up into four parts: A testing set, a training set and
 
 Using the small training set, I ran a linear regression to find the most important variables. These were, in order, secured debt, real property, and current monthly income.
 
-Then, using just these variables, I ran a linear regression on the larger training set. With fewer variables, current monthly income rose to the top as the most predictive variable. The RMSE turned out quite small, which gives me confidence that these three factors play large roles in the Chapter someone chooses.
+Then, using just these variables, I ran a linear regression on the larger training set. With fewer variables, current monthly income rose to the top as the most predictive variable. The RMSE turned out quite small (.484), which gives me confidence that these three factors play large roles in the Chapter someone chooses.
 
 ### Conclusions
 
